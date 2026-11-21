@@ -1,0 +1,1984 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: http: ws: wss: data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';" />
+    <link rel="icon" href="./favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" href="./logo-192.png" sizes="192x192" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <title>COASTLINE – Life of the Streets</title>
+    <style>
+      :root {
+        --hud-bg: rgba(8, 13, 24, 0.78);
+        --hud-border: rgba(56, 189, 248, 0.28);
+        --hud-text: #f8fafc;
+        --accent: #38bdf8;
+        --accent-strong: #0284c7;
+        --gold: #facc15;
+        --emerald: #4ade80;
+        --danger: #f87171;
+        --cyan: #22d3ee;
+      }
+
+      * {
+        box-sizing: border-box;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        overscroll-behavior: none;
+        background: #070b14;
+        font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        color: var(--hud-text);
+        touch-action: none;
+      }
+
+      #game-canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      /* PigDev-style Juiciness FX */
+      #damage-vignette {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 15;
+        opacity: 0;
+        background: radial-gradient(circle at center, rgba(220, 38, 38, 0) 52%, rgba(220, 38, 38, 0.58) 100%);
+        transition: opacity 0.14s ease-out;
+      }
+
+      #damage-vignette.flash {
+        opacity: 1;
+        transition: opacity 0.04s ease-in;
+      }
+
+      #pop-toast {
+        position: fixed;
+        top: 22%;
+        left: 50%;
+        transform: translate(-50%, 8px) scale(0.85);
+        pointer-events: none;
+        z-index: 28;
+        font-size: 26px;
+        font-weight: 900;
+        letter-spacing: 0.8px;
+        color: #4ade80;
+        text-shadow: 0 4px 18px rgba(0, 0, 0, 0.85), 0 0 22px rgba(74, 222, 128, 0.65);
+        opacity: 0;
+        white-space: nowrap;
+      }
+
+      #pop-toast.pop {
+        animation: popFloat 1.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      }
+
+      @keyframes popFloat {
+        0% {
+          opacity: 0;
+          transform: translate(-50%, 16px) scale(0.72);
+        }
+        18% {
+          opacity: 1;
+          transform: translate(-50%, 0px) scale(1.12);
+        }
+        75% {
+          opacity: 1;
+          transform: translate(-50%, -26px) scale(1.0);
+        }
+        100% {
+          opacity: 0;
+          transform: translate(-50%, -44px) scale(0.95);
+        }
+      }
+
+      @keyframes hudHitShake {
+        0%, 100% { transform: translate3d(0, 0, 0); }
+        18% { transform: translate3d(-5px, 3px, 0); }
+        36% { transform: translate3d(5px, -4px, 0); }
+        54% { transform: translate3d(-4px, -2px, 0); }
+        72% { transform: translate3d(4px, 2px, 0); }
+      }
+
+      .hit-shake {
+        animation: hudHitShake 0.28s ease-out;
+      }
+
+      #update-banner {
+        position: fixed;
+        bottom: max(14px, env(safe-area-inset-bottom, 14px));
+        left: 50%;
+        transform: translateX(-50%);
+        display: none;
+        align-items: center;
+        gap: 10px;
+        background: rgba(8, 13, 24, 0.92);
+        border: 1px solid rgba(56, 189, 248, 0.6);
+        border-radius: 999px;
+        padding: 6px 14px;
+        font-size: 11px;
+        font-weight: 700;
+        color: #e0f2fe;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+        z-index: 36;
+        pointer-events: auto;
+        cursor: pointer;
+      }
+
+      #update-banner.visible {
+        display: inline-flex;
+      }
+
+      #hud {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        padding:
+          max(10px, env(safe-area-inset-top, 10px))
+          max(12px, env(safe-area-inset-right, 12px))
+          max(12px, env(safe-area-inset-bottom, 12px))
+          max(12px, env(safe-area-inset-left, 12px));
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 8px;
+        z-index: 10;
+      }
+
+      .top-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 10px;
+      }
+
+      .top-right-col {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 7px;
+      }
+
+      .panel {
+        background: rgba(8, 13, 24, 0.82);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid var(--hud-border);
+        border-radius: 14px;
+        padding: 9px 13px;
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.42);
+        pointer-events: auto;
+      }
+
+      /* Sleek Top-Left Status Panel */
+      .status-panel {
+        min-width: 225px;
+        max-width: 345px;
+      }
+
+      .econ-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .money-pill {
+        color: var(--emerald);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .money-pill .bank-sub {
+        color: #93c5fd;
+        font-weight: 600;
+      }
+
+      .wallet-pill {
+        background: rgba(34, 211, 238, 0.14);
+        border: 1px solid rgba(34, 211, 238, 0.42);
+        color: #67e8f9;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 800;
+        cursor: pointer;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .wallet-pill:hover {
+        border-color: #22d3ee;
+        background: rgba(34, 211, 238, 0.24);
+      }
+
+      .wins-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        color: var(--gold);
+        font-size: 11px;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .net-dot-wrap {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 10px;
+        color: #94a3b8;
+        font-weight: 700;
+        margin-left: auto;
+      }
+
+      .net-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #64748b;
+      }
+
+      .net-dot.online {
+        background: #4ade80;
+        box-shadow: 0 0 8px #4ade80;
+      }
+
+      .hp-row {
+        margin-top: 7px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .hp-label {
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.6px;
+        color: #fda4af;
+      }
+
+      .hp-track {
+        flex: 1;
+        height: 7px;
+        background: rgba(15, 23, 42, 0.92);
+        border: 1px solid rgba(251, 113, 133, 0.35);
+        border-radius: 999px;
+        overflow: hidden;
+      }
+
+      #health-bar {
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, #e11d48, #fb7185);
+        border-radius: 999px;
+        transition: width 0.16s ease;
+      }
+
+      .hp-pct {
+        font-size: 10px;
+        font-weight: 800;
+        color: #fecdd3;
+        font-variant-numeric: tabular-nums;
+        min-width: 30px;
+        text-align: right;
+      }
+
+      .weapon-row {
+        margin-top: 5px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .weapon-badge {
+        display: none;
+        background: rgba(239, 68, 68, 0.22);
+        border: 1px solid rgba(248, 113, 113, 0.6);
+        color: #fecaca;
+        padding: 1px 8px;
+        border-radius: 999px;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.4px;
+      }
+
+      .weapon-badge.armed {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+      }
+
+      .wanted {
+        color: var(--danger);
+        font-weight: 800;
+        font-size: 12px;
+        letter-spacing: 1px;
+      }
+
+      /* Vehicle Telemetry: Hidden on foot, visible ONLY while driving */
+      #vehicle-telemetry {
+        margin-top: 7px;
+        padding-top: 7px;
+        border-top: 1px solid rgba(148, 163, 184, 0.16);
+        display: none;
+        align-items: center;
+        gap: 10px;
+      }
+
+      #vehicle-telemetry.active {
+        display: flex;
+      }
+
+      #speed-wrap {
+        font-size: 14px;
+        font-weight: 900;
+        color: #f8fafc;
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+      }
+
+      #speed-val {
+        color: #38bdf8;
+        font-size: 18px;
+      }
+
+      #speed-wrap small {
+        font-size: 10px;
+        color: #94a3b8;
+        font-weight: 700;
+      }
+
+      .nitro-wrap {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex: 1;
+        min-width: 90px;
+      }
+
+      .nitro-label {
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.6px;
+        color: #67e8f9;
+      }
+
+      .nitro-track {
+        flex: 1;
+        height: 7px;
+        background: rgba(15, 23, 42, 0.92);
+        border: 1px solid rgba(34, 211, 238, 0.42);
+        border-radius: 999px;
+        overflow: hidden;
+      }
+
+      #nitro-bar {
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, #06b6d4, #38bdf8, #facc15);
+        border-radius: 999px;
+        transition: width 0.08s linear;
+      }
+
+      /* Top-Center Live Race Ticker */
+      #race-ticker {
+        position: fixed;
+        top: max(10px, env(safe-area-inset-top, 10px));
+        left: 50%;
+        transform: translateX(-50%);
+        display: none;
+        align-items: center;
+        gap: 12px;
+        background: rgba(7, 11, 24, 0.9);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(34, 211, 238, 0.6);
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.55), 0 0 24px rgba(34, 211, 238, 0.2);
+        border-radius: 999px;
+        padding: 7px 14px;
+        font-size: 12px;
+        font-weight: 700;
+        z-index: 18;
+        pointer-events: auto;
+        white-space: nowrap;
+      }
+
+      #race-ticker.active {
+        display: flex;
+      }
+
+      .race-tick-sep {
+        opacity: 0.35;
+      }
+
+      #race-pos {
+        color: var(--gold);
+        font-weight: 900;
+      }
+
+      #race-cp {
+        color: #22d3ee;
+        font-weight: 900;
+      }
+
+      #race-timer {
+        color: #f8fafc;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .race-pool-tag {
+        color: #4ade80;
+        font-size: 11px;
+      }
+
+      .btn-mini-forfeit {
+        background: rgba(220, 38, 38, 0.25);
+        border: 1px solid rgba(248, 113, 113, 0.55);
+        color: #fecaca;
+        border-radius: 999px;
+        padding: 3px 9px;
+        font-size: 10px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      /* Centered Need-for-Speed 4-Light Countdown Overlay */
+      #race-countdown-overlay {
+        position: fixed;
+        top: 26%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        background: rgba(6, 10, 20, 0.88);
+        border: 2px solid rgba(56, 189, 248, 0.45);
+        border-radius: 20px;
+        padding: 16px 26px;
+        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.72);
+        z-index: 26;
+        pointer-events: none;
+      }
+
+      #race-countdown-overlay.active {
+        display: flex;
+      }
+
+      .cd-tree {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+
+      .cd-lens {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        border: 2px solid rgba(255, 255, 255, 0.25);
+        background: rgba(15, 23, 42, 0.9);
+        transition: all 0.12s ease;
+      }
+
+      .cd-lens.red.lit {
+        background: #ef4444;
+        border-color: #fecaca;
+        box-shadow: 0 0 24px #ef4444, 0 0 42px rgba(239, 68, 68, 0.7);
+      }
+
+      .cd-lens.amber.lit {
+        background: #f59e0b;
+        border-color: #fef08a;
+        box-shadow: 0 0 24px #f59e0b, 0 0 42px rgba(245, 158, 11, 0.75);
+      }
+
+      .cd-lens.green.lit {
+        background: #22c55e;
+        border-color: #bbf7d0;
+        box-shadow: 0 0 28px #22c55e, 0 0 54px rgba(34, 197, 94, 0.85);
+      }
+
+      #cd-text {
+        font-size: 26px;
+        font-weight: 900;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        text-shadow: 0 2px 14px rgba(0, 0, 0, 0.8);
+      }
+
+      /* Top-Right Icon Tray */
+      .quick-toggles {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        align-items: center;
+        pointer-events: auto;
+      }
+
+      .btn-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        background: rgba(8, 13, 24, 0.84);
+        backdrop-filter: blur(8px);
+        border: 1px solid var(--hud-border);
+        color: #e2e8f0;
+        border-radius: 999px;
+        padding: 6px 10px;
+        min-height: 32px;
+        font-size: 11px;
+        font-weight: 700;
+        cursor: pointer;
+        touch-action: manipulation;
+      }
+
+      .btn-toggle.icon-only {
+        width: 34px;
+        height: 34px;
+        padding: 0;
+        border-radius: 50%;
+      }
+
+      .btn-toggle:hover {
+        border-color: var(--accent);
+      }
+
+      .btn-toggle.club-pill {
+        background: linear-gradient(135deg, rgba(6, 182, 212, 0.28), rgba(234, 179, 8, 0.24));
+        border-color: rgba(34, 211, 238, 0.72);
+        color: #fef08a;
+        font-weight: 800;
+      }
+
+      .mission-box {
+        max-width: 260px;
+        text-align: right;
+        padding: 7px 11px;
+      }
+
+      .mission-title {
+        font-size: 11px;
+        font-weight: 800;
+        color: var(--gold);
+      }
+
+      .mission-desc {
+        font-size: 10px;
+        opacity: 0.88;
+        margin-top: 2px;
+        line-height: 1.3;
+      }
+
+      #minimap {
+        width: 132px;
+        height: 132px;
+        border-radius: 14px;
+        border: 2px solid rgba(56, 189, 248, 0.55);
+        background: rgba(8, 13, 24, 0.88);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+        pointer-events: none;
+      }
+
+      .controls-bottom {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        gap: 12px;
+      }
+
+      #joystick-zone {
+        position: relative;
+        width: 124px;
+        height: 124px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(15, 23, 42, 0.68) 0%, rgba(8, 13, 24, 0.42) 70%);
+        border: 2px solid rgba(56, 189, 248, 0.34);
+        box-shadow: inset 0 0 18px rgba(56, 189, 248, 0.12), 0 6px 20px rgba(0, 0, 0, 0.35);
+        pointer-events: auto;
+        touch-action: none;
+        flex-shrink: 0;
+      }
+
+      #joystick-zone::before,
+      #joystick-zone::after {
+        content: '';
+        position: absolute;
+        background: rgba(148, 163, 184, 0.16);
+        pointer-events: none;
+      }
+
+      #joystick-zone::before {
+        left: 50%;
+        top: 16%;
+        bottom: 16%;
+        width: 1px;
+        transform: translateX(-50%);
+      }
+
+      #joystick-zone::after {
+        top: 50%;
+        left: 16%;
+        right: 16%;
+        height: 1px;
+        transform: translateY(-50%);
+      }
+
+      #joystick-knob {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 52px;
+        height: 52px;
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        background: radial-gradient(circle at 35% 35%, #7dd3fc, #0284c7);
+        border: 2px solid rgba(255, 255, 255, 0.72);
+        box-shadow: 0 4px 14px rgba(2, 132, 199, 0.6);
+        pointer-events: none;
+      }
+
+      /* Context-Sensitive Circular GTA-Mobile Action Cluster */
+      .action-cluster-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 8px;
+        pointer-events: auto;
+      }
+
+      .context-pop-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        justify-content: flex-end;
+      }
+
+      .race-club-context-btn {
+        display: none;
+        align-items: center;
+        gap: 7px;
+        background: linear-gradient(135deg, rgba(6, 182, 212, 0.9), rgba(2, 132, 199, 0.92));
+        border: 2px solid #fde047;
+        color: #fff;
+        border-radius: 999px;
+        padding: 8px 14px;
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 0.7px;
+        box-shadow: 0 0 22px rgba(34, 211, 238, 0.55);
+        cursor: pointer;
+        touch-action: manipulation;
+        animation: pulseGlow 1.6s infinite ease-in-out;
+      }
+
+      .race-club-context-btn.visible {
+        display: inline-flex;
+      }
+
+      @keyframes pulseGlow {
+        0%, 100% { transform: scale(1); box-shadow: 0 0 18px rgba(34, 211, 238, 0.5); }
+        50% { transform: scale(1.04); box-shadow: 0 0 28px rgba(250, 204, 21, 0.75); }
+      }
+
+      .circle-cluster {
+        display: none;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 8px;
+      }
+
+      .circle-cluster.visible {
+        display: flex;
+      }
+
+      .circle-row {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 9px;
+      }
+
+      .ammo-pill {
+        display: none;
+        background: rgba(15, 23, 42, 0.85);
+        border: 1px solid rgba(248, 113, 113, 0.55);
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-size: 11px;
+        font-weight: 800;
+        color: #fecaca;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .ammo-pill.visible {
+        display: inline-flex;
+      }
+
+      .circle-btn {
+        width: 54px;
+        height: 54px;
+        border-radius: 50%;
+        background: rgba(10, 17, 32, 0.74);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border: 1.5px solid rgba(148, 163, 184, 0.45);
+        color: #f8fafc;
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        cursor: pointer;
+        touch-action: none;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.42);
+        transition: transform 0.08s ease, background 0.12s ease, border-color 0.12s ease;
+        padding: 0;
+      }
+
+      .circle-btn svg {
+        width: 21px;
+        height: 21px;
+        display: block;
+      }
+
+      .circle-btn .lbl {
+        font-size: 8.5px;
+        font-weight: 800;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+        opacity: 0.88;
+        line-height: 1;
+      }
+
+      .circle-btn:active,
+      .circle-btn.active {
+        transform: scale(0.91);
+        background: rgba(2, 132, 199, 0.86);
+        border-color: #7dd3fc;
+      }
+
+      .circle-btn.hero {
+        width: 66px;
+        height: 66px;
+        border-width: 2px;
+      }
+
+      .circle-btn.hero svg {
+        width: 26px;
+        height: 26px;
+      }
+
+      .circle-btn.gas {
+        background: rgba(22, 163, 74, 0.76);
+        border-color: rgba(74, 222, 128, 0.75);
+      }
+
+      .circle-btn.gas:active,
+      .circle-btn.gas.active {
+        background: #16a34a;
+      }
+
+      .circle-btn.brake {
+        background: rgba(220, 38, 38, 0.74);
+        border-color: rgba(248, 113, 113, 0.72);
+      }
+
+      .circle-btn.brake:active,
+      .circle-btn.brake.active {
+        background: #dc2626;
+      }
+
+      .circle-btn.nitro {
+        background: rgba(8, 145, 178, 0.78);
+        border-color: rgba(34, 211, 238, 0.8);
+      }
+
+      .circle-btn.fire-mode {
+        background: rgba(220, 38, 38, 0.8);
+        border-color: rgba(252, 165, 165, 0.85);
+      }
+
+      .circle-btn.enter-car {
+        background: rgba(234, 179, 8, 0.88);
+        border-color: #fef08a;
+        color: #0f172a;
+      }
+
+      .circle-btn.talk-npc {
+        background: rgba(147, 51, 234, 0.84);
+        border-color: rgba(216, 180, 254, 0.82);
+      }
+
+      .circle-btn.hidden-ctx {
+        display: none !important;
+      }
+
+      .btn {
+        background: rgba(15, 23, 42, 0.88);
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        color: #fff;
+        border-radius: 10px;
+        padding: 9px 13px;
+        min-height: 38px;
+        font-weight: 700;
+        font-size: 12px;
+        cursor: pointer;
+        touch-action: manipulation;
+      }
+
+      .btn-action {
+        background: linear-gradient(135deg, #0ea5e9, #2563eb);
+        border-color: #7dd3fc;
+        color: #fff;
+      }
+
+      .btn-gold {
+        background: linear-gradient(135deg, #eab308, #f59e0b);
+        border-color: #fde047;
+        color: #0f172a;
+        font-weight: 900;
+      }
+
+      .btn-emerald {
+        background: linear-gradient(135deg, #16a34a, #059669);
+        border-color: #4ade80;
+        color: #fff;
+        font-weight: 800;
+      }
+
+      .btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+
+      #dialogue-box {
+        position: fixed;
+        left: 50%;
+        bottom: max(164px, calc(154px + env(safe-area-inset-bottom, 0px)));
+        transform: translateX(-50%);
+        width: min(460px, calc(100vw - 28px));
+        background: rgba(8, 13, 24, 0.94);
+        border: 1px solid rgba(192, 132, 252, 0.58);
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6), 0 0 22px rgba(168, 85, 247, 0.2);
+        border-radius: 14px;
+        padding: 11px 15px;
+        z-index: 22;
+        pointer-events: none;
+        display: none;
+      }
+
+      #dialogue-box.open,
+      #dialogue-box.show {
+        display: block;
+      }
+
+      #dialogue-speaker {
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.9px;
+        text-transform: uppercase;
+        color: #e879f9;
+        margin-bottom: 3px;
+      }
+
+      #dialogue-text {
+        font-size: 13px;
+        line-height: 1.4;
+        color: #f1f5f9;
+      }
+
+      /* Modals */
+      .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(4, 8, 18, 0.84);
+        backdrop-filter: blur(8px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 32;
+        padding: 14px;
+      }
+
+      .modal-backdrop.open {
+        display: flex;
+      }
+
+      .shop-card {
+        width: 100%;
+        max-width: 430px;
+        max-height: 88vh;
+        overflow-y: auto;
+        touch-action: pan-y;
+        background: #0f172a;
+        border: 1px solid rgba(56, 189, 248, 0.45);
+        border-radius: 16px;
+        padding: 18px 20px;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65);
+      }
+
+      .shop-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding: 11px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        font-size: 13px;
+      }
+
+      .shop-item:last-child {
+        border-bottom: none;
+      }
+
+      /* Racing Club Motorsport Glass Modal */
+      .racing-card {
+        width: 100%;
+        max-width: 720px;
+        max-height: 90vh;
+        overflow-y: auto;
+        touch-action: pan-y;
+        background: linear-gradient(160deg, rgba(10, 17, 34, 0.96), rgba(15, 23, 42, 0.96));
+        border: 1px solid rgba(34, 211, 238, 0.48);
+        border-radius: 18px;
+        padding: 18px 20px;
+        box-shadow: 0 24px 64px rgba(0, 0, 0, 0.78), 0 0 40px rgba(6, 182, 212, 0.14);
+        pointer-events: auto;
+      }
+
+      .racing-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding-bottom: 12px;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+      }
+
+      .racing-title {
+        font-size: 18px;
+        font-weight: 900;
+        letter-spacing: 1px;
+        color: #22d3ee;
+      }
+
+      .racing-subtitle {
+        font-size: 11px;
+        color: #facc15;
+        font-weight: 700;
+        letter-spacing: 0.7px;
+      }
+
+      .rc-balances {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        margin: 12px 0;
+      }
+
+      .rc-bal-box {
+        background: rgba(15, 23, 42, 0.8);
+        border: 1px solid rgba(56, 189, 248, 0.22);
+        border-radius: 12px;
+        padding: 9px 11px;
+      }
+
+      .rc-bal-lbl {
+        font-size: 10px;
+        color: #94a3b8;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      .rc-bal-val {
+        font-size: 16px;
+        font-weight: 900;
+        margin-top: 2px;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .rc-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-top: 10px;
+      }
+
+      .rc-section {
+        background: rgba(8, 13, 24, 0.72);
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        border-radius: 14px;
+        padding: 13px;
+      }
+
+      .rc-sec-title {
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.6px;
+        color: #e2e8f0;
+        margin-bottom: 9px;
+        text-transform: uppercase;
+      }
+
+      .rc-input-row {
+        display: flex;
+        gap: 7px;
+        margin-bottom: 8px;
+      }
+
+      .rc-input {
+        width: 100%;
+        background: #070b14;
+        border: 1px solid rgba(56, 189, 248, 0.35);
+        border-radius: 9px;
+        padding: 9px 11px;
+        color: #fff;
+        font-size: 13px;
+        user-select: text;
+        -webkit-user-select: text;
+      }
+
+      .chip-row {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-bottom: 9px;
+      }
+
+      .chip-btn {
+        background: rgba(30, 41, 59, 0.85);
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        color: #e2e8f0;
+        border-radius: 999px;
+        padding: 5px 11px;
+        font-size: 11px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .chip-btn.active {
+        background: rgba(2, 132, 199, 0.88);
+        border-color: #38bdf8;
+        color: #fff;
+      }
+
+      .escrow-card {
+        background: linear-gradient(135deg, rgba(6, 78, 59, 0.36), rgba(14, 116, 144, 0.28));
+        border: 1px solid rgba(52, 211, 153, 0.45);
+        border-radius: 10px;
+        padding: 9px 11px;
+        font-size: 11.5px;
+        font-weight: 700;
+        color: #ecfdf5;
+        line-height: 1.45;
+        margin: 8px 0;
+      }
+
+      .rules-scroll {
+        max-height: 92px;
+        overflow-y: auto;
+        touch-action: pan-y;
+        background: rgba(7, 11, 20, 0.78);
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 9px;
+        padding: 8px 10px;
+        font-size: 11px;
+        line-height: 1.42;
+        color: #cbd5e1;
+        margin-bottom: 8px;
+      }
+
+      .rules-check {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 11.5px;
+        font-weight: 700;
+        color: #fde047;
+        cursor: pointer;
+        margin-bottom: 10px;
+      }
+
+      .rules-check input {
+        width: 16px;
+        height: 16px;
+        accent-color: #22d3ee;
+      }
+
+      .deposit-status {
+        margin-top: 8px;
+        font-size: 11.5px;
+        font-weight: 700;
+        padding: 7px 10px;
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.85);
+        border: 1px solid rgba(56, 189, 248, 0.25);
+        color: #bae6fd;
+        display: none;
+      }
+
+      .deposit-status.visible {
+        display: block;
+      }
+
+      .deposit-status.ok {
+        border-color: rgba(74, 222, 128, 0.6);
+        color: #86efac;
+      }
+
+      .deposit-status.err {
+        border-color: rgba(248, 113, 113, 0.65);
+        color: #fecaca;
+      }
+
+      .room-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 10px;
+        background: rgba(15, 23, 42, 0.78);
+        border: 1px solid rgba(56, 189, 248, 0.2);
+        border-radius: 10px;
+        margin-bottom: 7px;
+        font-size: 12px;
+      }
+
+      .waiting-banner {
+        display: none;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        background: rgba(234, 179, 8, 0.14);
+        border: 1px solid rgba(250, 204, 21, 0.55);
+        border-radius: 10px;
+        padding: 9px 11px;
+        margin-top: 8px;
+        font-size: 12px;
+        font-weight: 700;
+        color: #fef08a;
+      }
+
+      .waiting-banner.visible {
+        display: flex;
+      }
+
+      .rc-identity-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        flex-wrap: wrap;
+        background: rgba(15, 23, 42, 0.85);
+        border: 1px solid rgba(56, 189, 248, 0.25);
+        border-radius: 11px;
+        padding: 7px 12px;
+        margin-top: 10px;
+        font-size: 11.5px;
+      }
+
+      .player-code-chip {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-weight: 900;
+        color: #67e8f9;
+        background: rgba(34, 211, 238, 0.14);
+        border: 1px solid rgba(34, 211, 238, 0.45);
+        border-radius: 999px;
+        padding: 2px 10px;
+        cursor: pointer;
+      }
+
+      .rank-tier-badge {
+        font-weight: 900;
+        font-size: 11px;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        padding: 2px 10px;
+        border-radius: 999px;
+        background: rgba(148, 163, 184, 0.18);
+        border: 1px solid rgba(148, 163, 184, 0.45);
+        color: #e2e8f0;
+      }
+
+      .rank-tier-badge.tier-gold {
+        background: rgba(234, 179, 8, 0.2);
+        border-color: #facc15;
+        color: #fde047;
+      }
+
+      .rank-tier-badge.tier-diamond {
+        background: rgba(34, 211, 238, 0.2);
+        border-color: #22d3ee;
+        color: #67e8f9;
+      }
+
+      .room-code-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 13px;
+        font-weight: 900;
+        letter-spacing: 1.5px;
+        background: rgba(7, 11, 20, 0.9);
+        border: 1px solid #facc15;
+        color: #fde047;
+        border-radius: 8px;
+        padding: 3px 9px;
+        margin-top: 4px;
+      }
+
+      /* Compact Comms Drawer & Voice PTT Pill (Left Mid-Bottom) */
+      .comms-wrap {
+        position: fixed;
+        left: max(12px, env(safe-area-inset-left, 12px));
+        bottom: max(150px, calc(144px + env(safe-area-inset-bottom, 0px)));
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+        z-index: 16;
+        pointer-events: none;
+      }
+
+      .comms-pill-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        pointer-events: auto;
+      }
+
+      .comms-pill {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: rgba(8, 13, 24, 0.82);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border: 1px solid rgba(56, 189, 248, 0.36);
+        color: #e2e8f0;
+        border-radius: 999px;
+        padding: 6px 11px;
+        font-size: 11px;
+        font-weight: 800;
+        cursor: pointer;
+        touch-action: manipulation;
+      }
+
+      .comms-pill.ptt-live {
+        background: rgba(220, 38, 38, 0.88);
+        border-color: #fecaca;
+        color: #fff;
+        box-shadow: 0 0 18px rgba(239, 68, 68, 0.7);
+      }
+
+      .unread-dot {
+        display: none;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #facc15;
+        box-shadow: 0 0 8px #facc15;
+      }
+
+      .unread-dot.visible {
+        display: inline-block;
+      }
+
+      .voice-speaking-pill {
+        display: none;
+        align-items: center;
+        gap: 4px;
+        background: rgba(16, 185, 129, 0.24);
+        border: 1px solid rgba(52, 211, 153, 0.6);
+        color: #86efac;
+        border-radius: 999px;
+        padding: 4px 9px;
+        font-size: 10.5px;
+        font-weight: 800;
+      }
+
+      .voice-speaking-pill.visible {
+        display: inline-flex;
+      }
+
+      #comms-drawer {
+        display: none;
+        flex-direction: column;
+        width: min(300px, calc(100vw - 24px));
+        background: rgba(8, 13, 24, 0.9);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid rgba(56, 189, 248, 0.38);
+        border-radius: 13px;
+        padding: 8px 10px;
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+        pointer-events: auto;
+      }
+
+      #comms-drawer.open {
+        display: flex;
+      }
+
+      .comms-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        margin-bottom: 6px;
+      }
+
+      .chat-messages {
+        height: 112px;
+        overflow-y: auto;
+        touch-action: pan-y;
+        font-size: 11px;
+        line-height: 1.38;
+        color: #e2e8f0;
+        padding: 4px 2px;
+        margin-bottom: 6px;
+        border-top: 1px solid rgba(148, 163, 184, 0.14);
+        border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+      }
+
+      .chat-line {
+        margin-bottom: 4px;
+        word-break: break-word;
+      }
+
+      .chat-input-row {
+        display: flex;
+        gap: 5px;
+      }
+
+      .chat-input-row input {
+        flex: 1;
+        min-width: 0;
+        background: #070b14;
+        border: 1px solid rgba(56, 189, 248, 0.32);
+        border-radius: 8px;
+        padding: 6px 8px;
+        color: #fff;
+        font-size: 11.5px;
+        user-select: text;
+        -webkit-user-select: text;
+      }
+
+      /* Winner Podium Card */
+      .podium-card {
+        width: 100%;
+        max-width: 440px;
+        background: linear-gradient(160deg, #0b1326, #111c36);
+        border: 2px solid rgba(250, 204, 21, 0.65);
+        border-radius: 20px;
+        padding: 22px;
+        text-align: center;
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8), 0 0 42px rgba(250, 204, 21, 0.22);
+      }
+
+      #toast {
+        position: fixed;
+        top: 66px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(15, 23, 42, 0.94);
+        border: 1px solid var(--accent);
+        padding: 8px 16px;
+        border-radius: 999px;
+        font-size: 13px;
+        font-weight: 600;
+        opacity: 0;
+        transition: opacity 0.25s;
+        pointer-events: none;
+        z-index: 35;
+        text-align: center;
+        max-width: 90vw;
+      }
+
+      #toast.show {
+        opacity: 1;
+      }
+
+      #login-overlay {
+        position: fixed;
+        inset: 0;
+        background: radial-gradient(circle at top, #0f2942, #070b14);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 40;
+        padding: 20px;
+      }
+
+      .login-card {
+        width: 100%;
+        max-width: 390px;
+        background: rgba(15, 23, 42, 0.94);
+        border: 1px solid rgba(56, 189, 248, 0.38);
+        border-radius: 18px;
+        padding: 26px 24px;
+        text-align: center;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+      }
+
+      .login-card h1 {
+        margin: 0 0 6px;
+        font-size: 28px;
+        letter-spacing: 3px;
+        color: var(--accent);
+      }
+
+      .login-card p {
+        margin: 0 0 18px;
+        font-size: 13px;
+        color: #cbd5e1;
+      }
+
+      .login-card input {
+        width: 100%;
+        padding: 12px 14px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        background: #0b1120;
+        color: #fff;
+        font-size: 15px;
+        margin-bottom: 12px;
+        user-select: text;
+        -webkit-user-select: text;
+      }
+
+      .login-card button {
+        width: 100%;
+        padding: 13px;
+        border-radius: 10px;
+        border: none;
+        background: linear-gradient(135deg, #0284c7, #2563eb);
+        color: #fff;
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .login-card button:disabled {
+        opacity: 0.7;
+        cursor: wait;
+      }
+
+      @media (max-width: 720px) {
+        .rc-grid {
+          grid-template-columns: 1fr;
+        }
+        .rc-balances {
+          grid-template-columns: 1fr;
+        }
+        #race-ticker {
+          top: auto;
+          bottom: max(148px, calc(138px + env(safe-area-inset-bottom, 0px)));
+          font-size: 11px;
+          gap: 7px;
+          padding: 5px 11px;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .status-panel {
+          min-width: 175px;
+          max-width: 55vw;
+          padding: 7px 10px;
+        }
+        .mission-box {
+          max-width: 39vw;
+          padding: 6px 9px;
+        }
+        #joystick-zone {
+          width: 112px;
+          height: 112px;
+        }
+        #joystick-knob {
+          width: 46px;
+          height: 46px;
+        }
+        .circle-btn {
+          width: 48px;
+          height: 48px;
+        }
+        .circle-btn.hero {
+          width: 58px;
+          height: 58px;
+        }
+        #dialogue-box {
+          bottom: max(180px, calc(168px + env(safe-area-inset-bottom, 0px)));
+          padding: 9px 12px;
+        }
+      }
+    </style>
+    <script type="module" crossorigin src="./assets/index-B77PGO7L.js"></script>
+    <link rel="modulepreload" crossorigin href="./assets/three-B7bceTZM.js">
+  </head>
+  <body>
+    <canvas id="game-canvas"></canvas>
+    <div id="damage-vignette"></div>
+    <div id="pop-toast"></div>
+    <div id="update-banner" role="button" tabindex="0">New update deployed • Tap to refresh</div>
+
+    <div id="login-overlay">
+      <div class="login-card">
+        <img src="./logo-256.png" alt="COASTLINE Logo" style="width:104px;height:104px;border-radius:22px;border:2px solid rgba(250,204,21,0.7);box-shadow:0 10px 28px rgba(34,211,238,0.28);margin:0 auto 12px;display:block;object-fit:cover;" />
+        <h1>COASTLINE</h1>
+        <p>LIFE OF THE STREETS — Open-World 3D</p>
+        <input id="username-input" type="text" placeholder="Jina lako la mchezaji (mf. King255)" maxlength="20" value="CoastPlayer" autocomplete="off" />
+        <button id="start-btn" type="button">INGIA KWENYE MJI</button>
+      </div>
+    </div>
+
+    <div id="toast"></div>
+
+    <!-- Top-Center In-Race Pro HUD Ticker -->
+    <div id="race-ticker">
+      <span>POS <strong id="race-pos">1/2</strong></span>
+      <span class="race-tick-sep">|</span>
+      <span>CP <strong id="race-cp">0/6</strong></span>
+      <span class="race-tick-sep">|</span>
+      <span id="race-timer">00:00.0</span>
+      <span class="race-tick-sep">|</span>
+      <span class="race-pool-tag">POOL <strong id="race-pool-val">2,000</strong> → WIN <strong id="race-win-val">1,800</strong></span>
+      <button class="btn-mini-forfeit" id="btn-leave-race" type="button">Forfeit</button>
+    </div>
+
+    <!-- Huge Centered Need-for-Speed 4-Light Countdown Overlay -->
+    <div id="race-countdown-overlay">
+      <div class="cd-tree">
+        <div class="cd-lens red" id="cd-light-red1"></div>
+        <div class="cd-lens red" id="cd-light-red2"></div>
+        <div class="cd-lens amber" id="cd-light-amber"></div>
+        <div class="cd-lens green" id="cd-light-green"></div>
+      </div>
+      <div id="cd-text">READY...</div>
+    </div>
+
+    <div id="hud" style="display:none;">
+      <div class="top-bar">
+        <!-- Sleek Top-Left Status Panel -->
+        <div class="panel status-panel">
+          <div class="econ-row">
+            <span class="money-pill">$<span id="cash-val">250</span> <span class="bank-sub">/ $<span id="bank-val">1,000</span></span></span>
+            <button class="wallet-pill" id="btn-open-wallet" type="button" title="Open Racing Wallet">
+              <span id="wallet-val">0</span> TZS
+            </button>
+            <span class="wins-pill" title="Race Wins">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M5 4h14v3a5 5 0 0 1-4 4.9V15h3v2H6v-2h3v-3.1A5 5 0 0 1 5 7V4zm-2 2h2v3a3 3 0 0 1-2-2.8V6zm16 0h2v.2A3 3 0 0 1 19 9V6zM8 19h8v2H8z"/>
+              </svg>
+              <span id="wins-val">0</span>
+            </span>
+            <span class="net-dot-wrap"><span class="net-dot" id="net-dot"></span><span id="net-status">Offline</span></span>
+          </div>
+
+          <div class="hp-row">
+            <span class="hp-label">HP</span>
+            <div class="hp-track"><div id="health-bar"></div></div>
+            <span class="hp-pct"><span id="health-val">100</span>%</span>
+          </div>
+
+          <div class="weapon-row">
+            <span class="weapon-badge" id="weapon-badge">Pistol 9mm</span>
+            <span class="wanted" id="wanted-val"></span>
+          </div>
+
+          <!-- Appears ONLY while driving a vehicle -->
+          <div id="vehicle-telemetry">
+            <div id="speed-wrap"><span id="speed-val">0</span> <small>km/h</small></div>
+            <div class="nitro-wrap">
+              <span class="nitro-label">NITRO</span>
+              <div class="nitro-track"><div id="nitro-bar"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Top-Right Quick Icon Tray, Mission & Minimap -->
+        <div class="top-right-col">
+          <div class="quick-toggles">
+            <button class="btn-toggle club-pill" id="btn-race-club" type="button" title="Racing Club (K)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 21V4"/><path d="M4 4h12l-2 4 2 4H4"/>
+              </svg>
+              <span>Club</span>
+            </button>
+            <button class="btn-toggle icon-only" id="btn-shop" type="button" title="Dealership & Property (M)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="9" cy="20" r="1.5"/><circle cx="17" cy="20" r="1.5"/><path d="M3 4h2l2.4 11h10.8l2-8H6.2"/>
+              </svg>
+            </button>
+            <button class="btn-toggle icon-only" id="btn-bank" type="button" title="Deposit Cash to Bank (B)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 10h18L12 4 3 10z"/><path d="M5 10v8M10 10v8M14 10v8M19 10v8M3 20h18"/>
+              </svg>
+            </button>
+            <button class="btn-toggle" id="btn-weather" type="button">Sky: Auto</button>
+            <button class="btn-toggle" id="btn-mute" type="button">Audio: ON</button>
+            <button class="btn-toggle" id="btn-quality" type="button">GFX: Fast</button>
+          </div>
+          <div class="panel mission-box" id="mission-box">
+            <div class="mission-title" id="mission-title">Missions: Tafuta Alama ya Njano</div>
+            <div class="mission-desc" id="mission-desc">Fika alama ya njano kukusanya zawadi</div>
+          </div>
+          <canvas id="minimap" width="132" height="132"></canvas>
+        </div>
+      </div>
+
+      <div id="dialogue-box" aria-live="polite">
+        <div id="dialogue-speaker"></div>
+        <div id="dialogue-text"></div>
+      </div>
+
+      <!-- Compact Comms Drawer & Voice PTT Pill -->
+      <div class="comms-wrap">
+        <div id="comms-drawer">
+          <div class="comms-head">
+            <div style="display:flex; gap:4px; align-items:center;">
+              <button class="chip-btn active" id="comms-scope-global" type="button" style="padding:3px 8px; font-size:10px;">Global</button>
+              <button class="chip-btn" id="comms-scope-race" type="button" style="padding:3px 8px; font-size:10px;">Race</button>
+            </div>
+            <button class="chip-btn" id="btn-close-comms" type="button" style="padding:2px 7px; font-size:10px;">✕</button>
+          </div>
+          <div class="chat-messages" id="chat-messages">
+            <div class="chat-line" style="color:#94a3b8;">Welcome to COASTLINE Comms. Press Enter or Hold Mic to talk!</div>
+          </div>
+          <div class="chat-input-row">
+            <input id="chat-input" type="text" maxlength="160" placeholder="Message..." autocomplete="off" />
+            <button class="btn btn-action" id="btn-chat-send" type="button" style="padding:5px 10px; min-height:28px; font-size:11px;">Send</button>
+          </div>
+        </div>
+        <div class="comms-pill-row">
+          <button class="comms-pill" id="btn-toggle-comms" type="button" title="Toggle Text Chat">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+            <span>Chat</span>
+            <span class="unread-dot" id="comms-unread-dot"></span>
+          </button>
+          <button class="comms-pill" id="btn-voice-ptt" type="button" title="Hold to Talk (Voice PCM)">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="17" x2="12" y2="22"/>
+            </svg>
+            <span id="voice-ptt-lbl">Hold-to-Talk</span>
+          </button>
+          <span class="voice-speaking-pill" id="voice-speaking-badge">🎙 Live</span>
+        </div>
+      </div>
+
+      <div class="controls-bottom">
+        <div id="joystick-zone" aria-label="Analog Thumbstick">
+          <div id="joystick-knob"></div>
+        </div>
+
+        <!-- Context-Sensitive Circular SVG Icon Action Cluster -->
+        <div class="action-cluster-wrap">
+          <div class="context-pop-row">
+            <button class="race-club-context-btn" id="btn-race-club-context" type="button">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 21V4"/><path d="M4 4h13l-2.5 4.2L17 12.5H4"/>
+              </svg>
+              <span>RACE CLUB</span>
+            </button>
+          </div>
+
+          <!-- On-Foot Circular Cluster -->
+          <div class="circle-cluster visible" id="onfoot-controls">
+            <div class="circle-row">
+              <button class="circle-btn talk-npc hidden-ctx" id="btn-talk" type="button" title="Talk (E)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1.2-4.6A8 8 0 1 1 21 12z"/>
+                  <circle cx="9.5" cy="12" r="0.9" fill="currentColor"/><circle cx="12.5" cy="12" r="0.9" fill="currentColor"/><circle cx="15.5" cy="12" r="0.9" fill="currentColor"/>
+                </svg>
+                <span class="lbl">Talk</span>
+              </button>
+              <button class="circle-btn enter-car hidden-ctx" id="btn-enter-car" type="button" title="Enter Car (F)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M4 15l1.5-5a2 2 0 0 1 1.9-1.4h9.2a2 2 0 0 1 1.9 1.4L20 15"/>
+                  <rect x="3" y="14" width="18" height="4.5" rx="1.5"/>
+                  <circle cx="7.5" cy="18.5" r="1.5"/><circle cx="16.5" cy="18.5" r="1.5"/>
+                </svg>
+                <span class="lbl">Enter</span>
+              </button>
+            </div>
+            <div class="circle-row">
+              <span class="ammo-pill" id="ammo-pill">12 / 12</span>
+              <button class="circle-btn hidden-ctx" id="btn-reload" type="button" title="Reload (R)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/>
+                </svg>
+                <span class="lbl">Reload</span>
+              </button>
+              <button class="circle-btn" id="btn-weapon" type="button" title="Switch Weapon (Q)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M3 8h16v3.5l-3 .5-2 6H9.5l1.3-5H7L5.2 15H3V8z"/>
+                  <path d="M19 9.5h2"/>
+                </svg>
+                <span class="lbl">Weapon</span>
+              </button>
+            </div>
+            <div class="circle-row">
+              <button class="circle-btn" id="btn-sprint" type="button" title="Sprint (Shift)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polygon points="13 2 4 14 11 14 10 22 20 10 13 10 13 2"/>
+                </svg>
+                <span class="lbl">Sprint</span>
+              </button>
+              <button class="circle-btn" id="btn-jump" type="button" title="Jump (Space)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 19V5"/><polyline points="6 11 12 5 18 11"/>
+                </svg>
+                <span class="lbl">Jump</span>
+              </button>
+              <button class="circle-btn hero" id="btn-primary-action" type="button" title="Punch / Fire">
+                <!-- Fist / Punch SVG -->
+                <svg id="ico-punch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M6 12V7.5a1.5 1.5 0 0 1 3 0V11"/>
+                  <path d="M9 10.5V6.5a1.5 1.5 0 0 1 3 0V11"/>
+                  <path d="M12 10.5V6.5a1.5 1.5 0 0 1 3 0V11"/>
+                  <path d="M15 11V8a1.5 1.5 0 0 1 3 0v5.5a5.5 5.5 0 0 1-5.5 5.5H10a5 5 0 0 1-5-5v-2.5a1.5 1.5 0 0 1 3 0"/>
+                </svg>
+                <!-- Crosshair / Fire SVG -->
+                <svg id="ico-fire" style="display:none;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/>
+                  <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+                </svg>
+                <span class="lbl" id="primary-action-lbl">Punch</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Inside-Vehicle Circular Cluster -->
+          <div class="circle-cluster" id="vehicle-controls">
+            <div class="circle-row">
+              <button class="circle-btn" id="btn-horn" type="button" title="Horn (H)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M4 13v-2a1 1 0 0 1 1-1h3l6-4v12l-6-4H5a1 1 0 0 1-1-1z"/>
+                  <path d="M17.5 8.5a5 5 0 0 1 0 7"/><path d="M20 6a8.5 8.5 0 0 1 0 12"/>
+                </svg>
+                <span class="lbl">Horn</span>
+              </button>
+              <button class="circle-btn enter-car" id="btn-exit-car" type="button" title="Exit Car (F)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M14 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8"/>
+                  <polyline points="16 16 20 12 16 8"/><line x1="20" y1="12" x2="9" y2="12"/>
+                </svg>
+                <span class="lbl">Exit</span>
+              </button>
+            </div>
+            <div class="circle-row">
+              <button class="circle-btn brake" id="btn-brake" type="button" title="Brake (S)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="6" y="5" width="12" height="14" rx="2"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/>
+                </svg>
+                <span class="lbl">Brake</span>
+              </button>
+              <button class="circle-btn nitro" id="btn-nitro" type="button" title="Nitro (Shift)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 2c2.8 3.2 5 6.4 5 10a5 5 0 1 1-10 0c0-2.5 1.3-4.8 3-7 .3 1.7 1.4 2.7 2.5 3.1C12.2 6.2 12 4.1 12 2z"/>
+                </svg>
+                <span class="lbl">Nitro</span>
+              </button>
+              <button class="circle-btn hero gas" id="btn-gas" type="button" title="Gas (W)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M8 4h8l2 15a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L8 4z"/><line x1="9.5" y1="9" x2="14.5" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/>
+                </svg>
+                <span class="lbl">Gas</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dealership & Property Modal -->
+    <div class="modal-backdrop" id="shop-modal">
+      <div class="shop-card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <strong style="color:#38bdf8; font-size:15px;">COASTLINE DEALERSHIP &amp; PROPERTY</strong>
+          <button class="btn" id="btn-close-shop" type="button" style="padding:6px 12px; min-height:34px;">✕</button>
+        </div>
+        <div class="shop-item">
+          <div><strong>Sport Coupe</strong><br/><span style="opacity:0.72;">Gari la mbio kali (42 m/s)</span></div>
+          <button class="btn btn-action" type="button" data-buy="sport_coupe">$1,200</button>
+        </div>
+        <div class="shop-item">
+          <div><strong>Luxury Yacht</strong><br/><span style="opacity:0.72;">Boti ya kifahari baharini (36 m/s)</span></div>
+          <button class="btn btn-action" type="button" data-buy="luxury_yacht">$2,000</button>
+        </div>
+        <div class="shop-item">
+          <div><strong>Beach Villa</strong><br/><span style="opacity:0.72;">Nyumba ya kifahari Beach District</span></div>
+          <button class="btn btn-action" type="button" data-buy="beach_villa">$1,500</button>
+        </div>
+        <div class="shop-item">
+          <div><strong>Downtown Loft</strong><br/><span style="opacity:0.72;">Makazi katikati ya jiji</span></div>
+          <button class="btn btn-action" type="button" data-buy="downtown_loft">$2,500</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- COASTLINE RACING CLUB & Mobile Money Top-Up Modal -->
+    <div class="modal-backdrop" id="racing-modal">
+      <div class="racing-card">
+        <div class="racing-header">
+          <div>
+            <div class="racing-title">COASTLINE RACING CLUB</div>
+            <div class="racing-subtitle">NEED FOR SPEED • EAST COASTAL SPEEDWAY</div>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <button class="btn btn-action" id="btn-teleport-paddock" type="button" style="padding:7px 11px; min-height:34px; font-size:11px;">
+              Drive to Paddock
+            </button>
+            <button class="btn" id="btn-close-racing" type="button" style="padding:6px 12px; min-height:34px;">✕</button>
+          </div>
+        </div>
+
+        <div class="rc-identity-bar">
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <span style="color:#94a3b8; font-weight:700;">Player Code:</span>
+            <button class="player-code-chip" id="rc-player-code" type="button" title="Click to copy your Player Code">CL-000000</button>
+            <span class="rank-tier-badge" id="rc-rank-tier">Unranked</span>
+          </div>
+          <div id="rc-kills-medals" style="color:#cbd5e1; font-weight:700; font-size:11px;">0 Kills • 0 Medals</div>
+        </div>
+
+        <div class="rc-balances">
+          <div class="rc-bal-box">
+            <div class="rc-bal-lbl">Real Racing Wallet</div>
+            <div class="rc-bal-val" style="color:#22d3ee;"><span id="rc-wallet-tzs">0</span> TZS</div>
+          </div>
+          <div class="rc-bal-box">
+            <div class="rc-bal-lbl">Bank Credits (Practice)</div>
+            <div class="rc-bal-val" style="color:#4ade80;">$<span id="rc-bank-val">1,000</span></div>
+          </div>
+          <div class="rc-bal-box">
+            <div class="rc-bal-lbl">Club Victories</div>
+            <div class="rc-bal-val" style="color:#facc15;"><span id="rc-wins-val">0</span> Wins</div>
+          </div>
+        </div>
+
+        <div class="rc-grid">
+          <!-- Left Column: Mobile Money Top-Up & Lobby -->
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            <div class="rc-section">
+              <div class="rc-sec-title">Mobile Money Top-Up (TZS)</div>
+              <div class="rc-input-row">
+                <input class="rc-input" id="deposit-phone" type="tel" placeholder="07xx / 06xx (e.g. 0712345678)" maxlength="16" autocomplete="tel" />
+              </div>
+              <div class="rc-input-row">
+                <input class="rc-input" id="deposit-amount" type="number" min="500" step="100" value="1000" placeholder="Amount (TZS)" />
+                <button class="btn btn-emerald" id="btn-deposit-submit" type="button" style="white-space:nowrap;">Pay via Mobile Money</button>
+              </div>
+              <div class="chip-row">
+                <button class="chip-btn deposit-chip" data-dep-amt="500" type="button">500</button>
+                <button class="chip-btn deposit-chip active" data-dep-amt="1000" type="button">1,000</button>
+                <button class="chip-btn deposit-chip" data-dep-amt="2000" type="button">2,000</button>
+                <button class="chip-btn deposit-chip" data-dep-amt="5000" type="button">5,000</button>
+              </div>
+              <div class="deposit-status" id="deposit-status-badge"></div>
+            </div>
+
+            <div class="rc-section">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <div class="rc-sec-title" style="margin-bottom:0;">Live Race Challenges</div>
+                <button class="chip-btn" id="btn-refresh-lobby" type="button">Refresh</button>
+              </div>
+              <div class="rc-input-row" style="margin-bottom:9px;">
+                <input class="rc-input" id="race-join-code-input" type="text" placeholder="Friend / Room Code (e.g. CL-482917)" maxlength="24" autocomplete="off" style="font-size:12px; padding:7px 9px;" />
+                <button class="btn btn-action" id="btn-join-by-code" type="button" style="white-space:nowrap; min-height:32px; padding:6px 10px; font-size:11px;">Join by Code</button>
+              </div>
+              <div id="race-lobby-rooms" style="max-height:150px; overflow-y:auto; touch-action:pan-y;"></div>
+            </div>
+          </div>
+
+          <!-- Right Column: Stake Setup, Escrow Split, Rules & Launch -->
+          <div class="rc-section">
+            <div class="rc-sec-title">Create or Launch Race</div>
+
+            <div class="chip-row" style="margin-bottom:10px;">
+              <button class="chip-btn active" id="mode-real-btn" type="button">Real TZS PvP</button>
+              <button class="chip-btn" id="mode-practice-btn" type="button">Practice vs Rival / Friend</button>
+            </div>
+
+            <div style="font-size:11px; color:#94a3b8; font-weight:700; margin-bottom:5px;">Select Stake Tier</div>
+            <div class="chip-row">
+              <button class="chip-btn stake-pill" data-stake="500" type="button">500</button>
+              <button class="chip-btn stake-pill active" data-stake="1000" type="button">1,000</button>
+              <button class="chip-btn stake-pill" data-stake="2000" type="button">2,000</button>
+              <button class="chip-btn stake-pill" data-stake="5000" type="button">5,000</button>
+            </div>
+
+            <div class="escrow-card" id="escrow-preview">
+              Stake: 1,000 + Rival: 1,000 = Pool: 2,000 &nbsp;|&nbsp; Winner Gets: 1,800 (90%) &nbsp;|&nbsp; System Fee: 200 (10%)
+            </div>
+
+            <div style="font-size:11px; color:#94a3b8; font-weight:700; margin-bottom:4px;">Official Racing Club Rules</div>
+            <div class="rules-scroll" id="race-rules-list"></div>
+
+            <label class="rules-check" style="color:#67e8f9; margin-bottom:6px;">
+              <input type="checkbox" id="race-private-checkbox" />
+              <span>Private (Invite Only — Hidden from Public Lobby)</span>
+            </label>
+
+            <label class="rules-check">
+              <input type="checkbox" id="race-rules-accept" />
+              <span>I read &amp; accept the Race Rules and Escrow Split</span>
+            </label>
+
+            <div class="deposit-status err" id="race-modal-error"></div>
+
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button class="btn btn-gold" id="btn-create-race" type="button" style="flex:1;">Create Challenge</button>
+              <button class="btn btn-action" id="btn-race-bot" type="button" style="flex:1;">Race Pro Rival</button>
+            </div>
+
+            <div class="waiting-banner" id="race-waiting-banner">
+              <div>
+                <div id="race-waiting-text">Waiting for challenger...</div>
+                <div class="room-code-badge" id="race-waiting-code-wrap" style="display:none;">
+                  <span>CODE: <span id="race-waiting-code">------</span></span>
+                  <button class="chip-btn" id="btn-copy-room-code" type="button" style="padding:2px 7px; font-size:10px;">Copy</button>
+                </div>
+              </div>
+              <button class="btn-mini-forfeit" id="btn-cancel-wait" type="button">Cancel &amp; Refund</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cinematic Winner Podium Card -->
+    <div class="modal-backdrop" id="race-podium-modal">
+      <div class="podium-card">
+        <div style="font-size:40px; line-height:1; margin-bottom:6px;" id="podium-trophy">🏆</div>
+        <div style="font-size:22px; font-weight:900; letter-spacing:1.2px; color:#facc15;" id="podium-title">VICTORY!</div>
+        <div style="font-size:13px; color:#cbd5e1; margin-top:4px;" id="podium-matchup"></div>
+
+        <div class="escrow-card" style="margin:14px 0; text-align:left;" id="podium-breakdown"></div>
+
+        <div style="display:flex; gap:10px; justify-content:center; margin-top:14px;">
+          <button class="btn btn-gold" id="btn-podium-rematch" type="button" style="flex:1;">Race Again</button>
+          <button class="btn btn-action" id="btn-podium-close" type="button" style="flex:1;">Continue Cruising</button>
+        </div>
+      </div>
+    </div>
+
+  </body>
+</html>
