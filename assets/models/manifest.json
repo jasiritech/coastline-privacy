@@ -1,0 +1,91 @@
+{
+  "project": "COASTLINE",
+  "assets": [
+    {
+      "name": "house_modern_01",
+      "category": "buildings",
+      "glb": "buildings/house_modern_01_clean.glb",
+      "triangles": null,
+      "dimensions_meters": null
+    },
+    {
+      "name": "shop_coastal_01",
+      "category": "buildings",
+      "glb": "buildings/shop_coastal_01_clean.glb",
+      "triangles": null,
+      "dimensions_meters": null
+    },
+    {
+      "name": "player_default",
+      "category": "characters",
+      "glb": "characters/player_default_clean.glb",
+      "triangles": null,
+      "dimensions_meters": null
+    },
+    {
+      "name": "palm_tree_01",
+      "category": "environment",
+      "glb": "environment/palm_tree_01_clean.glb",
+      "triangles": null,
+      "dimensions_meters": null
+    },
+    {
+      "name": "street_bench_01",
+      "category": "props",
+      "glb": "props/street_bench_01_clean.glb",
+      "triangles": null,
+      "dimensions_meters": null
+    },
+    {
+      "name": "street_lamp_01",
+      "category": "props",
+      "glb": "props/street_lamp_01_clean.glb",
+      "triangles": 4000,
+      "dimensions_meters": {
+        "x_width": 0.437,
+        "y_depth": 0.433,
+        "z_height": 1.956
+      }
+    },
+    {
+      "name": "traffic_barrier_01",
+      "category": "props",
+      "glb": "props/traffic_barrier_01_clean.glb",
+      "triangles": null,
+      "dimensions_meters": null
+    },
+    {
+      "name": "coastline_boat_01",
+      "category": "vehicles",
+      "glb": "vehicles/coastline_boat_01_clean.glb",
+      "triangles": 10000,
+      "dimensions_meters": {
+        "x_width": 1.96,
+        "y_depth": 0.612,
+        "z_height": 0.907
+      }
+    },
+    {
+      "name": "coastline_moto_01",
+      "category": "vehicles",
+      "glb": "vehicles/coastline_moto_01_clean.glb",
+      "triangles": 22390,
+      "dimensions_meters": {
+        "x_width": 1.973,
+        "y_depth": 1.413,
+        "z_height": 1.328
+      }
+    },
+    {
+      "name": "coastline_suv_01",
+      "category": "vehicles",
+      "glb": "vehicles/coastline_suv_01_clean.glb",
+      "triangles": 16432,
+      "dimensions_meters": {
+        "x_width": 1.961,
+        "y_depth": 0.959,
+        "z_height": 0.8
+      }
+    }
+  ]
+}
